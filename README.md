@@ -31,13 +31,13 @@ A backend for collaborative document editing built with Go and PostgreSQL. Users
 ## Architecture
 The backend is organized into handlers, services, models, entities, middleware, and collaboration components.
 
+![System Architecture](images/architecture.png)
 
 
 ## Document Access
 Documents use role-based access control. Access is checked before protected document operations and before establishing a WebSocket connection.
 
 ## Real-Time Collaboration
-
 Clients connect to a document through WebSockets. The server authenticates the JWT, verifies document access, and then establishes the connection.
 
 Each WebSocket client uses a read pump and write pump, while a Hub manages connected clients and broadcasts document updates.
@@ -60,6 +60,7 @@ Document owners/admins can invite users by email. Accepted invitations create do
 
 ## Dashboard
 The dashboard provides a single endpoint for the main document-related information a user needs after login.
+
 GET /dashboard - It returns:
 - Documents owned by the user
 - Recently updated accessible documents
@@ -79,7 +80,7 @@ GET /dashboard - It returns:
 | Collaboration | WebSocket |
 
 ## Running Locally
-### Requirements
+### Prerequisites
 - Go
 - PostgreSQL
 - Docker
@@ -88,13 +89,11 @@ GET /dashboard - It returns:
 ### Configuration
 Create a .env file with the required database and JWT configuration, then run the database migrations and start the application.
 
-go run ./cmd/...
-
 Do not commit .env or other secrets to the repository.
 
 Run the database migrations using the project's Atlas configuration before starting the application.
 
-### Current Scope
+## Current Scope
 
 The current version focuses on the backend: authentication, document management, permissions, invitations, versioning, concurrency control, dashboard APIs, and WebSocket-based collaboration.
 
