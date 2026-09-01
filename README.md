@@ -31,8 +31,7 @@ A backend for collaborative document editing built with Go and PostgreSQL. Users
 ## Architecture
 The backend is organized into handlers, services, models, entities, middleware, and collaboration components.
 
-![System Architecture](images/architecture.png)
-
+![System Architecture](backend/images/architecture.png)
 
 ## Document Access
 Documents use role-based access control. Access is checked before protected document operations and before establishing a WebSocket connection.
