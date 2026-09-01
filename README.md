@@ -1,8 +1,8 @@
-# Real-Time Collaborative Document Editor
+# 📄 Real-Time Collaborative Document Editor
 
 A backend for collaborative document editing built with Go and PostgreSQL. Users can create documents, share them with other users, edit them based on their roles, and collaborate through WebSockets. The system also maintains document history and supports restoring previous versions.
 
-## Features
+## ✨ Features
 - JWT-based user authentication
 - Document CRUD operations
 - Role-based access control
@@ -18,7 +18,7 @@ A backend for collaborative document editing built with Go and PostgreSQL. Users
 - Atomic document and version updates using database transactions
 - Dashboard API
 
-## Tech Stack
+## 🛠️ Tech Stack
 - Language: **Go**
 - HTTP Router: **Chi**
 - Database: **PostgreSQL**
@@ -28,15 +28,15 @@ A backend for collaborative document editing built with Go and PostgreSQL. Users
 - Database Migrations: **Atlas**
 - Containerization: **Docker**
 
-## Architecture
+## Architecture 
 The backend is organized into handlers, services, models, entities, middleware, and collaboration components.
 
-![System Architecture](backend/images/architecture.png)
+<img src="backend/images/architecture.png" alt="system architecture" width="400"/>
 
-## Document Access
+## 🔐 Document Access
 Documents use role-based access control. Access is checked before protected document operations and before establishing a WebSocket connection.
 
-## Real-Time Collaboration
+## ⚡ Real-Time Collaboration
 Clients connect to a document through WebSockets. The server authenticates the JWT, verifies document access, and then establishes the connection.
 
 Each WebSocket client uses a read pump and write pump, while a Hub manages connected clients and broadcasts document updates.
@@ -45,7 +45,7 @@ Edits include a base document version. If a client submits an edit based on an o
 
 The current implementation uses optimistic concurrency control rather than Operational Transformation (OT) or CRDTs.
 
-## Versioning and Concurrency
+## 📝 Versioning and Concurrency
 Every document starts at version 1. Updates create new versions, preserving previous document states. Restoring an older version creates a new version instead of deleting or modifying existing history.
 - v1 → Initial document
 - v2 → Edit
@@ -54,10 +54,10 @@ Every document starts at version 1. Updates create new versions, preserving prev
 
 Document updates and version creation are handled in the same database transaction so they either both succeed or both roll back.
 
-## Invitations & Permissions
+## ✉️ Invitations & Permissions
 Document owners/admins can invite users by email. Accepted invitations create document membership with the assigned role. Access checks are applied to document operations and WebSocket connections.
 
-## Dashboard
+## 📊Dashboard
 The dashboard provides a single endpoint for the main document-related information a user needs after login.
 
 GET /dashboard - It returns:
@@ -66,7 +66,7 @@ GET /dashboard - It returns:
 - Documents shared with the user
 - Pending document invitations
 
-## API
+## ✨  API
 
 | Area | Endpoints |
 | --- | --- |
@@ -78,7 +78,7 @@ GET /dashboard - It returns:
 | Dashboard | Get Dashboard |
 | Collaboration | WebSocket |
 
-## Running Locally
+## 💻 Running Locally
 ### Prerequisites
 - Go
 - PostgreSQL
@@ -92,7 +92,7 @@ Do not commit .env or other secrets to the repository.
 
 Run the database migrations using the project's Atlas configuration before starting the application.
 
-## Current Scope
+## ✨ Current Scope
 
 The current version focuses on the backend: authentication, document management, permissions, invitations, versioning, concurrency control, dashboard APIs, and WebSocket-based collaboration.
 
