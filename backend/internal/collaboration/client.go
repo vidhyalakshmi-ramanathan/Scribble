@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"sync"
 
 	"encoding/json"
 
@@ -18,14 +19,12 @@ type Client struct {
 	Conn       *websocket.Conn
 	Send       chan []byte
 
-	service *CollaborationService
+	service   *CollaborationService
+	closeOnce sync.Once
 }
 
 func (c *Client) readPump(hub *Hub) {
-	defer func() {
-		hub.unregister <- c
-		c.Conn.Close()
-	}()
+	defer c.close(hub)
 
 	for {
 		_, message, err := c.Conn.ReadMessage()
@@ -80,7 +79,9 @@ func (c *Client) readPump(hub *Hub) {
 	}
 }
 
-func (c *Client) writePump() {
+func (c *Client) writePump(hub *Hub) {
+	defer c.close(hub)
+
 	for message := range c.Send {
 		err := c.Conn.WriteMessage(
 			websocket.TextMessage,
@@ -106,4 +107,11 @@ func (c *Client) sendError(code int, message string) {
 		return
 	}
 	c.Send <- data
+}
+
+func (c *Client) close(hub *Hub) {
+	c.closeOnce.Do(func() {
+		hub.unregister <- c
+		c.Conn.Close()
+	})
 }

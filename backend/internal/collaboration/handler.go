@@ -62,7 +62,7 @@ func (h *Handler) HandleConnection(w http.ResponseWriter, r *http.Request) {
 	}
 	h.hub.register <- client
 
-	go client.writePump()
+	go client.writePump(h.hub)
 	client.readPump(h.hub)
 }
 
