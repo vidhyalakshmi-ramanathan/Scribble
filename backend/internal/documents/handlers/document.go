@@ -12,6 +12,7 @@ import (
 	"github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/dto"
 	"github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/middleware"
 	"github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/response"
+	"gorm.io/datatypes"
 )
 
 type DocumentHandler struct {
@@ -37,16 +38,20 @@ func (h *DocumentHandler) CreateDoc(w http.ResponseWriter, r *http.Request) {
 	document := entities.Documents{
 		DocumentID: uuid.New().String(),
 		Title:      docData.Title,
-		Content:    docData.Content,
+		Content:    datatypes.JSON(docData.Content),
+		Category:   docData.Category,
 		OwnerID:    claims.UserID,
 		UpdatedBy:  claims.UserID,
+		SchemaVer:  1,
 	}
-	if err := h.service.CreateDoc(claims.UserID, &document); err != nil {
+	docID, err := h.service.CreateDoc(claims.UserID, &document)
+	if err != nil {
 		response.Error(w, err)
 		return
 	}
 	response.JSON(w, http.StatusCreated, dto.APIResponse{
 		Message: "Document Created Successfully!",
+		Data:    map[string]string{"docID": docID},
 	})
 }
 
@@ -73,7 +78,6 @@ func (h *DocumentHandler) GetDocByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DocumentHandler) GetMyAllDocs(w http.ResponseWriter, r *http.Request) {
-	var docDetails []entities.Documents
 	claims, ok := middleware.GetClaims(r.Context())
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -110,28 +114,31 @@ func (h *DocumentHandler) UpdateDoc(w http.ResponseWriter, r *http.Request) {
 	document := entities.Documents{
 		DocumentID: docID,
 		Title:      docData.Title,
-		Content:    docData.Content,
+		Content:    datatypes.JSON(docData.Content),
+		Category:   docData.Category,
 		UpdatedBy:  claims.UserID,
 	}
-	err := h.service.UpdateDoc(claims.UserID, &document)
-	if err != nil {
+	if err := h.service.UpdateDoc(claims.UserID, &document); err != nil {
 		response.Error(w, err)
 		return
 	}
-	response.JSON(w, http.StatusCreated, dto.APIResponse{
+	response.JSON(w, http.StatusOK, dto.APIResponse{
 		Message: "Document Updated Successfully!",
 	})
 }
 
 func (h *DocumentHandler) DeleteDoc(w http.ResponseWriter, r *http.Request) {
 	docID := chi.URLParam(r, "docID")
+	if docID == "" {
+		http.Error(w, "Request parameter docID is required", http.StatusBadRequest)
+		return
+	}
 	claims, ok := middleware.GetClaims(r.Context())
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	err := h.service.DeleteDoc(claims.UserID, docID)
-	if err != nil {
+	if err := h.service.DeleteDoc(claims.UserID, docID); err != nil {
 		response.Error(w, err)
 		return
 	}
@@ -151,10 +158,14 @@ func (h *DocumentHandler) GetVersion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	var version int
-
-	if err := json.NewDecoder(r.Body).Decode(&version); err != nil {
-		http.Error(w, "The JSON in the request is invalid", http.StatusBadRequest)
+	versionParam := chi.URLParam(r, "version")
+	if versionParam == "" {
+		http.Error(w, "Request parameter version is required", http.StatusBadRequest)
+		return
+	}
+	version, err := strconv.Atoi(versionParam)
+	if err != nil || version < 1 {
+		http.Error(w, "Invalid version", http.StatusBadRequest)
 		return
 	}
 	versionDetail, err := h.service.GetVersion(claims.UserID, docID, version)
@@ -197,7 +208,7 @@ func (h *DocumentHandler) RestoreVersion(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	versionID := chi.URLParam(r, "version")
-	if docID == "" {
+	if versionID == "" {
 		http.Error(w, "Request parameter version is required", http.StatusBadRequest)
 		return
 	}
@@ -207,7 +218,10 @@ func (h *DocumentHandler) RestoreVersion(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	version, err := strconv.Atoi(versionID)
-
+	if err != nil || version < 1 {
+		http.Error(w, "Invalid version", http.StatusBadRequest)
+		return
+	}
 	err = h.service.RestoreVersion(claims.UserID, docID, version)
 	if err != nil {
 		response.Error(w, err)
@@ -215,5 +229,27 @@ func (h *DocumentHandler) RestoreVersion(w http.ResponseWriter, r *http.Request)
 	}
 	response.JSON(w, http.StatusOK, dto.APIResponse{
 		Message: "Document restored successfully!",
+	})
+}
+
+func (h *DocumentHandler) SaveVersion(w http.ResponseWriter, r *http.Request) {
+	docID := chi.URLParam(r, "docID")
+	if docID == "" {
+		http.Error(w, "Request parameter docID is required", http.StatusBadRequest)
+		return
+	}
+	claims, ok := middleware.GetClaims(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	err := h.service.SaveVersion(claims.UserID, docID)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, dto.APIResponse{
+		Message: "Document Version successfully!",
 	})
 }

@@ -8,9 +8,9 @@ import (
 
 // User defines the data being store in the DB about a particular user
 type User struct {
-	UserID   string `gorm:"primaryKey"`
-	UserName string `gorm:"size:100;not null"`
-	Email    string `gorm:"unique;not null"`
+	UserID   string `gorm:"primaryKey" json:"userID"`
+	UserName string `gorm:"size:100;not null"  json:"username"`
+	Email    string `gorm:"unique;not null"  json:"email"`
 	Password string `gorm:"not null"`
 }
 

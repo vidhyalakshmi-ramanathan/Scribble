@@ -37,7 +37,7 @@ func main() {
 	versionModel := docmodel.NewVersionModel(db.DB)
 
 	userService := services.NewUserService(userModel)
-	documentService := docservice.NewDocumentService(documentModel, roleModel, versionModel, db.DB)
+	documentService := docservice.NewDocumentService(userModel, documentModel, roleModel, versionModel, db.DB)
 	roleService := roleservice.NewRoleService(roleModel, userModel, documentModel, db.DB)
 	dashboardService := dashboardservice.NewDashboardService(db.DB, documentModel, roleModel, userModel)
 	collaborationService := collaboration.NewCollaborationService(documentService)

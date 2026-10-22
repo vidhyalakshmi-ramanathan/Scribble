@@ -34,9 +34,9 @@ func (h *Hub) Run() {
 			h.clients[client.DocumentID][client] = true
 
 		case client := <-h.unregister:
-			h.removeClient(client)
-			close(client.Send)
-
+			if h.removeClient(client) {
+				close(client.Send)
+			}
 		case message := <-h.broadcast:
 			for client := range h.clients[message.DocumentID] {
 				select {
@@ -44,21 +44,30 @@ func (h *Hub) Run() {
 				default:
 					log.Printf("Client %s is too slow, disconnecting", client.ID)
 
-					h.removeClient(client)
-					close(client.Send)
-					client.Conn.Close()
+					if h.removeClient(client) {
+						close(client.Send)
+						client.Conn.Close()
+					}
 				}
 			}
 		}
 	}
 }
-
-func (h *Hub) removeClient(client *Client) {
-	if clients, ok := h.clients[client.DocumentID]; ok {
-		delete(clients, client)
-
-		if len(clients) == 0 {
-			delete(h.clients, client.DocumentID)
-		}
+func (h *Hub) removeClient(client *Client) bool {
+	clients, ok := h.clients[client.DocumentID]
+	if !ok {
+		return false
 	}
+
+	if _, exists := clients[client]; !exists {
+		return false
+	}
+
+	delete(clients, client)
+
+	if len(clients) == 0 {
+		delete(h.clients, client.DocumentID)
+	}
+
+	return true
 }

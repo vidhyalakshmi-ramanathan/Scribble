@@ -11,7 +11,7 @@ import (
 func UserRoutes(r chi.Router, userHandler *handlers.UserHandler) {
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/signup", userHandler.SignUpUser)
-		r.Get("/login", userHandler.LoginUser)
+		r.Post("/login", userHandler.LoginUser)
 		r.With(middleware.AuthMiddleware).Get("/test", userHandler.Test)
 	})
 }
@@ -35,7 +35,8 @@ func DocumentRoutes(r chi.Router, documentHandler *doc.DocumentHandler, roleHand
 			r.Route("/versions", func(r chi.Router) {
 				r.Get("/", documentHandler.GetVersions)
 				r.Get("/{version}", documentHandler.GetVersion)
-				r.Get("/{version}/restore", documentHandler.RestoreVersion)
+				r.Post("/save", documentHandler.SaveVersion)
+				r.Post("/{version}/restore", documentHandler.RestoreVersion)
 			})
 
 			r.Route("/members", func(r chi.Router) {

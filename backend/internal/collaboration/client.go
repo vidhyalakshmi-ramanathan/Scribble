@@ -65,10 +65,12 @@ func (c *Client) readPump(hub *Hub) {
 				DocumentID: doc.DocumentID,
 				Version:    doc.Version,
 				Content:    doc.Content,
+				Title:      doc.Title,
 			},
 		}
 		data, err := json.Marshal(broadcastMsg)
 		if err != nil {
+			log.Println("Failed to marshal broadcast:", err)
 			continue
 		}
 
@@ -106,7 +108,11 @@ func (c *Client) sendError(code int, message string) {
 	if err != nil {
 		return
 	}
-	c.Send <- data
+	select {
+	case c.Send <- data:
+	default:
+		log.Printf("Cannot send error to client %s: queue full", c.ID)
+	}
 }
 
 func (c *Client) close(hub *Hub) {

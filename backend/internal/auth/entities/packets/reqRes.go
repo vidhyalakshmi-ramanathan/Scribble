@@ -7,9 +7,9 @@ type UserDataReq struct {
 }
 
 type UserDataResponse struct {
-	UserID   string
-	Username string
-	Email    string
+	UserID   string `json:"userID"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
 }
 
 type LoginReq struct {
@@ -18,6 +18,6 @@ type LoginReq struct {
 }
 
 type LoginResponse struct {
-	User  UserDataResponse
-	Token string
+	User  UserDataResponse `json:"user"`
+	Token string           `json:"token"`
 }
