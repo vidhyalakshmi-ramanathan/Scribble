@@ -132,20 +132,29 @@ func (u *documentModel) GetDocumentForUpdate(tx *gorm.DB, documentID string) (*d
 	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("document_id = ?", documentID).
 		First(&document).Error
-	if err != nil {
-		return nil, err
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("Document not found %w", response.ErrNotFound)
 	}
-
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching document details by ID %w", err)
+	}
 	return &document, nil
 }
 
 func (u *documentModel) UpdateDocTx(tx *gorm.DB, document *doc.Documents) error {
-	return tx.Model(&doc.Documents{}).
+	result := tx.Model(&doc.Documents{}).
 		Where("document_id = ?", document.DocumentID).
 		Updates(map[string]interface{}{
 			"title":      document.Title,
 			"content":    document.Content,
 			"updated_by": document.UpdatedBy,
 			"version":    document.Version,
-		}).Error
+		})
+	if result.Error != nil {
+		return fmt.Errorf("error updating document: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return response.ErrNotFound
+	}
+	return nil
 }

@@ -28,7 +28,7 @@ func NewVersionModel(db *gorm.DB) VersionModel {
 func (u *versionModel) CreateVersion(tx *gorm.DB, version *doc.Version) error {
 	err := tx.Create(version).Error
 	if err != nil {
-		return err
+		return fmt.Errorf("error creating document version: %w", err)
 	}
 	return nil
 }

@@ -19,7 +19,7 @@ func NewHub() *Hub {
 		clients:    make(map[string]map[*Client]bool),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
-		broadcast:  make(chan Message),
+		broadcast:  make(chan Message, 256),
 	}
 }
 
@@ -46,13 +46,14 @@ func (h *Hub) Run() {
 
 					if h.removeClient(client) {
 						close(client.Send)
-						client.Conn.Close()
+						_ = client.Conn.Close()
 					}
 				}
 			}
 		}
 	}
 }
+
 func (h *Hub) removeClient(client *Client) bool {
 	clients, ok := h.clients[client.DocumentID]
 	if !ok {

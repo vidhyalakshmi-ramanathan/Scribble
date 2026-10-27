@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -228,65 +229,64 @@ func (s *documentService) GetVersions(userID, documentID string) (versionsList [
 }
 
 func (s *documentService) RestoreVersion(userID, documentID string, version int) error {
-	_, err := s.CheckEditPermission(userID, documentID)
-	if err != nil {
+	if _, err := s.CheckEditPermission(userID, documentID); err != nil {
 		return err
 	}
-	restoreDocVersion, err := s.versionModel.GetVersion(documentID, version)
+	// Retrieve the snapshot the user wants to restore
+	versionToRestore, err := s.versionModel.GetVersion(documentID, version)
 	if err != nil {
 		return err
 	}
 
 	return s.db.Transaction(func(tx *gorm.DB) error {
+		// Lock the document row while restoring
 		document, err := s.model.GetDocumentForUpdate(tx, documentID)
 		if err != nil {
 			return err
 		}
+		// Find the latest saved history snapshot
 		latestVersion, err := s.versionModel.GetLatestVersion(tx, documentID)
 		if err != nil {
 			return err
 		}
 		nextVersion := 1
+		sameAsLatest := false
 
-		if latestVersion.Title == restoreDocVersion.Title && latestVersion.Content == restoreDocVersion.Content {
-			document.Title = restoreDocVersion.Title
-			document.Content = restoreDocVersion.Content
-			document.UpdatedBy = userID
-			document.Version += 1
-
-			return s.model.UpdateDocTx(tx, document)
+		if latestVersion != nil {
+			nextVersion = latestVersion.VersionID + 1
+			sameAsLatest = latestVersion.Title == versionToRestore.Title && bytes.Equal(latestVersion.Content, versionToRestore.Content)
 		}
-		nextVersion = latestVersion.VersionID + 1
 
-		document.Title = restoreDocVersion.Title
-		document.Content = restoreDocVersion.Content
+		// Restore the selected snapshot to the live document
+		document.Title = versionToRestore.Title
+		document.Content = versionToRestore.Content
 		document.UpdatedBy = userID
-		document.Version += 1
+		document.Version++
 
 		if err := s.model.UpdateDocTx(tx, document); err != nil {
 			return err
 		}
 
-		docVersion := entities.Version{
+		// If the content is already identical, no new history
+		// snapshot is necessary
+		if sameAsLatest {
+			return nil
+		}
+		newVersion := entities.Version{
 			ID:         uuid.New().String(),
 			DocumentID: documentID,
 			VersionID:  nextVersion,
-			Title:      restoreDocVersion.Title,
-			Content:    restoreDocVersion.Content,
+			Title:      versionToRestore.Title,
+			Content:    versionToRestore.Content,
 			ModifiedBy: userID,
 		}
 
-		if err := s.versionModel.CreateVersion(tx, &docVersion); err != nil {
-			return err
-		}
-
-		return nil
+		return s.versionModel.CreateVersion(tx, &newVersion)
 	})
 }
 
 func (s *documentService) SaveVersion(userID, documentID string) error {
-	_, err := s.CheckEditPermission(userID, documentID)
-	if err != nil {
+	if _, err := s.CheckEditPermission(userID, documentID); err != nil {
 		return err
 	}
 
@@ -303,12 +303,15 @@ func (s *documentService) SaveVersion(userID, documentID string) error {
 		nextVersion := 1
 
 		if latestVersion != nil {
-			if latestVersion.Title == document.Title && latestVersion.Content == document.Content {
+			sameTitle := latestVersion.Title == document.Title
+			sameContent := bytes.Equal(latestVersion.Content, document.Content)
+
+			if sameTitle && sameContent {
 				return nil
 			}
+
 			nextVersion = latestVersion.VersionID + 1
 		}
-
 		docVersion := entities.Version{
 			ID:         uuid.New().String(),
 			DocumentID: document.DocumentID,
@@ -317,9 +320,6 @@ func (s *documentService) SaveVersion(userID, documentID string) error {
 			Content:    document.Content,
 			ModifiedBy: userID,
 		}
-		if err := s.versionModel.CreateVersion(tx, &docVersion); err != nil {
-			return err
-		}
-		return nil
+		return s.versionModel.CreateVersion(tx, &docVersion)
 	})
 }

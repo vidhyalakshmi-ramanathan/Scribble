@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/enums"
+	"gorm.io/datatypes"
 )
 
 type DocumentReq struct {
@@ -46,11 +47,8 @@ type WSMessage struct {
 }
 
 type EditData struct {
-	BaseVersion int    `json:"base_version"`
-	Operation   string `json:"operation"`
-	Position    int    `json:"position"`
-	Text        string `json:"text"`
-	Length      int    `json:"length"`
+	BaseVersion int             `json:"base_version"`
+	Content     json.RawMessage `json:"content"`
 }
 
 type WSError struct {
@@ -64,8 +62,8 @@ type BroadcastMessage struct {
 }
 
 type BroadcastData struct {
-	DocumentID string `json:"document_id"`
-	Version    int    `json:"version"`
-	Content    string `json:"content"`
-	Title      string `json:"title"`
+	DocumentID string         `json:"document_id"`
+	Version    int            `json:"version"`
+	Content    datatypes.JSON `json:"content"`
+	Title      string         `json:"title"`
 }

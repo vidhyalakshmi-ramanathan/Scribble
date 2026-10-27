@@ -56,13 +56,9 @@ var (
 		Code:    http.StatusForbidden,
 		Message: "User is not a member",
 	}
-	ErrInvalidPosition = &AppError{
-		Code:    http.StatusConflict,
-		Message: "Invalid position",
-	}
-	ErrInvalidOperation = &AppError{
+	ErrInvalidContent = &AppError{
 		Code:    http.StatusBadRequest,
-		Message: "Invalid edit operation",
+		Message: "Invalid edit content",
 	}
 	ErrVersionConflict = &AppError{
 		Code:    http.StatusConflict,

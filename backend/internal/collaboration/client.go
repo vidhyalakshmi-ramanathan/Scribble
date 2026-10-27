@@ -49,8 +49,8 @@ func (c *Client) readPump(hub *Hub) {
 		if err != nil {
 
 			log.Printf("ApplyEdit ERROR: %v", err)
-
-			if appErr, ok := errors.AsType[*response.AppError](err); ok {
+			var appErr *response.AppError
+			if errors.As(err, &appErr) {
 				c.sendError(appErr.Code, appErr.Message)
 			} else {
 				c.sendError(http.StatusInternalServerError, "Something went wrong")
@@ -118,6 +118,6 @@ func (c *Client) sendError(code int, message string) {
 func (c *Client) close(hub *Hub) {
 	c.closeOnce.Do(func() {
 		hub.unregister <- c
-		c.Conn.Close()
+		_ = c.Conn.Close()
 	})
 }

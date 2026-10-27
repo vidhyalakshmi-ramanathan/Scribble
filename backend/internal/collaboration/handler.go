@@ -3,6 +3,8 @@ package collaboration
 import (
 	"log"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
@@ -12,7 +14,19 @@ import (
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		return true
+		origin := r.Header.Get("Origin")
+		allowedOrigin := strings.TrimRight(
+			os.Getenv("FRONTEND_ORIGIN"),
+			"/",
+		)
+
+		// Local development fallback. Configure FRONTEND_ORIGIN
+		// to your deployed frontend's origin in production.
+		if allowedOrigin == "" {
+			allowedOrigin = "http://localhost:3000"
+		}
+
+		return origin != "" && origin == allowedOrigin
 	},
 }
 
@@ -47,7 +61,7 @@ func (h *Handler) HandleConnection(w http.ResponseWriter, r *http.Request) {
 	//Upgrade HTTP to WebSocket
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println("Upgrade error:", err)
+		log.Println("WebSocket Upgrade error:", err)
 		return
 	}
 
