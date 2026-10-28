@@ -13,7 +13,7 @@ type VersionModel interface {
 	CreateVersion(tx *gorm.DB, version *doc.Version) error
 	GetVersions(documentID string) (documentVersions []doc.VersionsList, err error)
 	GetVersion(documentID string, versionID int) (*doc.Version, error)
-	GetLatestVersion(tx *gorm.DB, documentID string) (latestVersion *doc.Version, err error)
+	GetLatestVersion(tx *gorm.DB, documentID string) (*doc.Version, error)
 	UpdateContentByVersion(documentID string, document *doc.Documents, version int) (bool, error)
 }
 
@@ -67,15 +67,16 @@ func (u *versionModel) GetVersion(documentID string, versionID int) (*doc.Versio
 	return &docVersion, nil
 }
 
-func (u *versionModel) GetLatestVersion(tx *gorm.DB, documentID string) (latestVersion *doc.Version, err error) {
-	err = tx.Where("document_id= ?", documentID).Order("version_id DESC").First(&latestVersion).Error
+func (u *versionModel) GetLatestVersion(tx *gorm.DB, documentID string) (*doc.Version, error) {
+	var latestVersion doc.Version
+	err := tx.Where("document_id= ?", documentID).Order("version_id DESC").First(&latestVersion).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("Error fetching version %w", err)
+		return nil, fmt.Errorf("Error fetching latest version %w", err)
 	}
-	return latestVersion, nil
+	return &latestVersion, nil
 }
 
 func (u *versionModel) UpdateContentByVersion(documentID string, document *doc.Documents, version int) (bool, error) {

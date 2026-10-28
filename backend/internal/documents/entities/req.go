@@ -15,6 +15,10 @@ type DocumentReq struct {
 	Version  *int            `json:"version"`
 }
 
+type RestoreVersionReq struct {
+	ExpectedVersion *int `json:"expectedVersion"`
+}
+
 type AddUserRoleReq struct {
 	Email string      `json:"email"`
 	Role  enums.Roles `json:"role"`

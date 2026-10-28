@@ -25,7 +25,7 @@ type DocumentService interface {
 	UpdateContentByVersion(document *entities.Documents, baseVersion int) error
 	GetVersion(userID, documentID string, version int) (versionDetail *entities.Version, err error)
 	GetVersions(userID, documentID string) (versions []entities.VersionsList, err error)
-	RestoreVersion(userID, documentID string, version int) error
+	RestoreVersion(userID, documentID string, version, expectedVersion int) error
 	SaveVersion(userID, documentID string) error
 }
 
@@ -237,7 +237,7 @@ func (s *documentService) GetVersions(userID, documentID string) (versionsList [
 	return versionsList, nil
 }
 
-func (s *documentService) RestoreVersion(userID, documentID string, version int) error {
+func (s *documentService) RestoreVersion(userID, documentID string, version, expectedVersion int) error {
 	if _, err := s.CheckEditPermission(userID, documentID); err != nil {
 		return err
 	}
@@ -252,6 +252,9 @@ func (s *documentService) RestoreVersion(userID, documentID string, version int)
 		document, err := s.model.GetDocumentForUpdate(tx, documentID)
 		if err != nil {
 			return err
+		}
+		if document.Version != expectedVersion {
+			return response.ErrVersionConflict
 		}
 		// Find the latest saved history snapshot
 		latestVersion, err := s.versionModel.GetLatestVersion(tx, documentID)

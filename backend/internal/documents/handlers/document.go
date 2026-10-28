@@ -206,6 +206,17 @@ func (h *DocumentHandler) GetVersions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DocumentHandler) RestoreVersion(w http.ResponseWriter, r *http.Request) {
+	var req entities.RestoreVersionReq
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	if req.ExpectedVersion == nil || *req.ExpectedVersion < 0 {
+		http.Error(w, "A valid expectedVersion is required", http.StatusBadRequest)
+		return
+	}
+
 	docID := chi.URLParam(r, "docID")
 	if docID == "" {
 		http.Error(w, "Request parameter docID is required", http.StatusBadRequest)
@@ -226,7 +237,7 @@ func (h *DocumentHandler) RestoreVersion(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Invalid version", http.StatusBadRequest)
 		return
 	}
-	err = h.service.RestoreVersion(claims.UserID, docID, version)
+	err = h.service.RestoreVersion(claims.UserID, docID, version, *req.ExpectedVersion)
 	if err != nil {
 		response.Error(w, err)
 		return
