@@ -110,13 +110,17 @@ func (h *DocumentHandler) UpdateDoc(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Request parameter docID is required", http.StatusBadRequest)
 		return
 	}
-
+	if docData.Version == nil || *docData.Version < 0 {
+		http.Error(w, "A valid document version is required", http.StatusBadRequest)
+		return
+	}
 	document := entities.Documents{
 		DocumentID: docID,
 		Title:      docData.Title,
 		Content:    datatypes.JSON(docData.Content),
 		Category:   docData.Category,
 		UpdatedBy:  claims.UserID,
+		Version:    *docData.Version,
 	}
 	if err := h.service.UpdateDoc(claims.UserID, &document); err != nil {
 		response.Error(w, err)

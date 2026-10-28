@@ -14,13 +14,13 @@ type DocumentModel interface {
 	CreateDoc(document *doc.Documents) error
 	GetDocByID(documentID string) (*doc.Documents, error)
 	GetMyAllDocs(userID string) (documents []doc.Documents, err error)
-	UpdateDoc(document *doc.Documents) error
 	DeleteDoc(documentID string) error
 	GetRecentlyEdited(userID string, limit int) ([]doc.Documents, error)
 	GetSharedDocuments(userID string) ([]doc.Documents, error)
 	GetMyDocs(userID string) (documents []doc.Documents, err error)
 	GetDocumentForUpdate(tx *gorm.DB, documentID string) (*doc.Documents, error)
 	UpdateDocTx(tx *gorm.DB, document *doc.Documents) error
+	UpdateDocWithVersion(document *doc.Documents, expectedVersion int) (bool, error)
 }
 
 type documentModel struct {
@@ -73,6 +73,24 @@ func (u *documentModel) UpdateDoc(document *doc.Documents) error {
 			"updated_by": document.UpdatedBy,
 			"version":    document.Version,
 		}).Error
+}
+
+func (u *documentModel) UpdateDocWithVersion(document *doc.Documents, expectedVersion int) (bool, error) {
+	result := u.db.Model(&doc.Documents{}).
+		Where("document_id= ? AND version= ?", document.DocumentID, expectedVersion).
+		Updates(map[string]interface{}{
+			"title":      document.Title,
+			"content":    document.Content,
+			"category":   document.Category,
+			"updated_by": document.UpdatedBy,
+			"version":    gorm.Expr("version + 1"),
+		})
+
+	if result.Error != nil {
+		return false, result.Error
+	}
+
+	return result.RowsAffected == 1, nil
 }
 
 func (u *documentModel) DeleteDoc(documentID string) error {

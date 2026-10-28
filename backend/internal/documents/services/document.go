@@ -112,19 +112,28 @@ func (s *documentService) UpdateDoc(userID string, document *entities.Documents)
 			Message: "content must be a valid ProseMirror document",
 		}
 	}
+	expectedVersion := document.Version
+
 	oldDocument, err := s.CheckEditPermission(userID, document.DocumentID)
 	if err != nil {
 		return err
+	}
+	// Reject a request based on an outdated document revision
+	if oldDocument.Version != expectedVersion {
+		return response.ErrVersionConflict
 	}
 
 	oldDocument.Title = document.Title
 	oldDocument.Content = document.Content
 	oldDocument.Category = document.Category
 	oldDocument.UpdatedBy = userID
-	oldDocument.Version++
 
-	if err := s.model.UpdateDoc(oldDocument); err != nil {
+	updated, err := s.model.UpdateDocWithVersion(oldDocument, expectedVersion)
+	if err != nil {
 		return err
+	}
+	if !updated {
+		return response.ErrVersionConflict
 	}
 	return nil
 }

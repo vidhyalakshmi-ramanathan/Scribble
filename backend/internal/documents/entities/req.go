@@ -12,6 +12,7 @@ type DocumentReq struct {
 	Title    string          `json:"title"`
 	Content  json.RawMessage `json:"content"`
 	Category string          `json:"category"`
+	Version  *int            `json:"version"`
 }
 
 type AddUserRoleReq struct {
