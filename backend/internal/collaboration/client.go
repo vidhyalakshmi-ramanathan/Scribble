@@ -18,9 +18,11 @@ type Client struct {
 	DocumentID string
 	Conn       *websocket.Conn
 	Send       chan []byte
+	done       chan struct{}
 
 	service   *CollaborationService
 	closeOnce sync.Once
+	doneOnce  sync.Once
 }
 
 func (c *Client) readPump(hub *Hub) {
@@ -84,14 +86,25 @@ func (c *Client) readPump(hub *Hub) {
 func (c *Client) writePump(hub *Hub) {
 	defer c.close(hub)
 
-	for message := range c.Send {
-		err := c.Conn.WriteMessage(
-			websocket.TextMessage,
-			message,
-		)
-		if err != nil {
-			log.Println("Write error", err)
+	for {
+		select {
+		case <-c.done:
 			return
+
+		case message := <-c.Send:
+			select {
+			case <-c.done:
+				return
+			default:
+			}
+
+			if err := c.Conn.WriteMessage(
+				websocket.TextMessage,
+				message,
+			); err != nil {
+				log.Println("Write error:", err)
+				return
+			}
 		}
 	}
 }
@@ -109,6 +122,8 @@ func (c *Client) sendError(code int, message string) {
 		return
 	}
 	select {
+	case <-c.done:
+		return
 	case c.Send <- data:
 	default:
 		log.Printf("Cannot send error to client %s: queue full", c.ID)
@@ -117,7 +132,14 @@ func (c *Client) sendError(code int, message string) {
 
 func (c *Client) close(hub *Hub) {
 	c.closeOnce.Do(func() {
+		c.stop()
 		hub.unregister <- c
+	})
+}
+
+func (c *Client) stop() {
+	c.doneOnce.Do(func() {
+		close(c.done)
 		_ = c.Conn.Close()
 	})
 }

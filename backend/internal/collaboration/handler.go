@@ -72,6 +72,7 @@ func (h *Handler) HandleConnection(w http.ResponseWriter, r *http.Request) {
 		DocumentID: docID,
 		Conn:       ws,
 		Send:       make(chan []byte, 256),
+		done:       make(chan struct{}),
 		service:    h.collaborationService,
 	}
 	h.hub.register <- client

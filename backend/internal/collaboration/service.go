@@ -43,8 +43,6 @@ func (s *CollaborationService) ApplyEdit(userID, documentID string, editData ent
 	document.UpdatedBy = userID
 
 	// Atomic content update and concurrency-version increment
-	document.UpdatedBy = userID
-
 	if err := s.documentService.UpdateContentByVersion(document, editData.BaseVersion); err != nil {
 		return nil, err
 	}

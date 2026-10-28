@@ -94,11 +94,11 @@ func (u *documentModel) UpdateDocWithVersion(document *doc.Documents, expectedVe
 }
 
 func (u *documentModel) DeleteDoc(documentID string) error {
-	err := u.db.Where("document_id= ?", documentID).Delete(&doc.Documents{})
-	if err.Error != nil {
-		return fmt.Errorf("Error delete document %w", err.Error)
+	result := u.db.Where("document_id= ?", documentID).Delete(&doc.Documents{})
+	if result.Error != nil {
+		return fmt.Errorf("Error delete document %w", result.Error)
 	}
-	if err.RowsAffected == 0 {
+	if result.RowsAffected == 0 {
 		return response.ErrNotFound
 	}
 	return nil

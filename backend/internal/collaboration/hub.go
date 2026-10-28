@@ -28,26 +28,32 @@ func (h *Hub) Run() {
 		select {
 
 		case client := <-h.register:
+			select {
+			case <-client.done:
+				continue
+			default:
+			}
+
 			if h.clients[client.DocumentID] == nil {
 				h.clients[client.DocumentID] = make(map[*Client]bool)
 			}
 			h.clients[client.DocumentID][client] = true
 
 		case client := <-h.unregister:
-			if h.removeClient(client) {
-				close(client.Send)
-			}
+			h.removeClient(client)
+			client.stop()
+
 		case message := <-h.broadcast:
 			for client := range h.clients[message.DocumentID] {
 				select {
+				case <-client.done:
+					h.removeClient(client)
 				case client.Send <- message.Data:
+					// Message queued for the client's writePump.
 				default:
 					log.Printf("Client %s is too slow, disconnecting", client.ID)
-
-					if h.removeClient(client) {
-						close(client.Send)
-						_ = client.Conn.Close()
-					}
+					h.removeClient(client)
+					client.stop()
 				}
 			}
 		}
