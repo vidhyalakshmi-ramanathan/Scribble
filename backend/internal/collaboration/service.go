@@ -34,7 +34,7 @@ func (s *CollaborationService) ApplyEdit(userID, documentID string, editData ent
 		return nil, err
 	}
 
-	if editData.BaseVersion != document.Version {
+	if editData.BaseCollabVersion != document.CollabVersion {
 		return nil, response.ErrVersionConflict
 	}
 
@@ -43,10 +43,10 @@ func (s *CollaborationService) ApplyEdit(userID, documentID string, editData ent
 	document.UpdatedBy = userID
 
 	// Atomic content update and concurrency-version increment
-	if err := s.documentService.UpdateContentByVersion(document, editData.BaseVersion); err != nil {
+	if err := s.documentService.ApplyCollaborativeEdit(document, editData.BaseCollabVersion); err != nil {
 		return nil, err
 	}
 
-	document.Version = editData.BaseVersion + 1
+	document.CollabVersion = editData.BaseCollabVersion + 1
 	return document, nil
 }

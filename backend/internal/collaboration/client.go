@@ -25,14 +25,22 @@ type Client struct {
 	doneOnce  sync.Once
 }
 
+//TODO: Add ping/pong
+
 func (c *Client) readPump(hub *Hub) {
 	defer c.close(hub)
 
 	for {
 		_, message, err := c.Conn.ReadMessage()
 		if err != nil {
-			log.Println("Read error", err)
-			break
+			if websocket.IsUnexpectedCloseError(
+				err,
+				websocket.CloseGoingAway,
+				websocket.CloseAbnormalClosure,
+			) {
+				log.Printf("WebSocket read error for %s: %v", c.ID, err)
+			}
+			return
 		}
 
 		var wsMessage entities.WSMessage
@@ -44,13 +52,12 @@ func (c *Client) readPump(hub *Hub) {
 			c.sendError(http.StatusBadRequest, "Invalid message type")
 			continue
 		}
-
 		log.Printf("EDIT received: document=%s user=%s message=%v", c.DocumentID, c.ID, wsMessage.Data)
 
 		doc, err := c.service.ApplyEdit(c.ID, c.DocumentID, wsMessage.Data)
 		if err != nil {
 
-			log.Printf("ApplyEdit ERROR: %v", err)
+			log.Printf("ApplyEdit failed for client %s: %v", c.ID, err)
 			var appErr *response.AppError
 			if errors.As(err, &appErr) {
 				c.sendError(appErr.Code, appErr.Message)
@@ -64,10 +71,10 @@ func (c *Client) readPump(hub *Hub) {
 		broadcastMsg := entities.BroadcastMessage{
 			Type: "edit",
 			Data: entities.BroadcastData{
-				DocumentID: doc.DocumentID,
-				Version:    doc.Version,
-				Content:    doc.Content,
-				Title:      doc.Title,
+				DocumentID:    doc.DocumentID,
+				CollabVersion: doc.CollabVersion,
+				Content:       doc.Content,
+				Title:         doc.Title,
 			},
 		}
 		data, err := json.Marshal(broadcastMsg)
@@ -76,9 +83,13 @@ func (c *Client) readPump(hub *Hub) {
 			continue
 		}
 
-		hub.broadcast <- Message{
+		select {
+		case hub.broadcast <- Message{
 			DocumentID: c.DocumentID,
 			Data:       data,
+		}:
+		case <-c.done:
+			return
 		}
 	}
 }
@@ -91,7 +102,10 @@ func (c *Client) writePump(hub *Hub) {
 		case <-c.done:
 			return
 
-		case message := <-c.Send:
+		case message, ok := <-c.Send:
+			if !ok {
+				return
+			}
 			select {
 			case <-c.done:
 				return
