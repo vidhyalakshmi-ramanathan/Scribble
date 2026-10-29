@@ -57,14 +57,27 @@ type AddUserRoleReq struct {
 }
 
 type VersionsList struct {
-	ID         string `json:"id"`
-	DocumentID string `json:"docID"`
-	Version    int    `json:"version"`
-	Title      string `json:"title"`
-	// Content            string    `json:"content"`
+	ID                 string    `json:"id"`
+	DocumentID         string    `json:"docID"`
+	Version            int       `json:"version"`
+	Title              string    `json:"title"`
 	ModifiedByUserID   string    `json:"modifiedByUserID"`
 	ModifiedByUserName *string   `json:"modifiedByUserName"`
+	SchemaVer          int       `json:"schemaVer"`
 	CreatedAt          time.Time `json:"createdAt"`
+	// Content            string    `json:"content"`
+}
+
+type VersionDetailRes struct {
+	ID               string         `json:"id"`
+	DocumentID       string         `json:"docID"`
+	Version          int            `json:"version"`
+	Title            string         `json:"title"`
+	Content          datatypes.JSON `json:"content"`
+	SchemaVer        int            `json:"schemaVer"`
+	ModifiedByUserID string         `json:"modifiedByUserID"`
+	ModifiedByName   string         `json:"modifiedByUserName"`
+	CreatedAt        time.Time      `json:"createdAt"`
 }
 
 type MemberDetailRes struct {

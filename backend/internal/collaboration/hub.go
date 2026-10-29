@@ -23,6 +23,13 @@ func NewHub() *Hub {
 	}
 }
 
+func (h *Hub) BroadcastDocument(documentID string, data []byte) {
+	h.broadcast <- Message{
+		DocumentID: documentID,
+		Data:       data,
+	}
+}
+
 func (h *Hub) Run() {
 	for {
 		select {

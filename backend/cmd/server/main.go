@@ -42,15 +42,14 @@ func main() {
 	dashboardService := dashboardservice.NewDashboardService(db.DB, documentModel, roleModel, userModel)
 	collaborationService := collaboration.NewCollaborationService(documentService)
 
+	hub := collaboration.NewHub()
+	go hub.Run()
+
+	collaborationHandler := collaboration.NewCollaborationHandler(roleService, collaborationService, hub)
 	userHandler := handlers.NewUserHandler(userService)
-	documentHandler := dochandler.NewDocumentHandler(documentService)
+	documentHandler := dochandler.NewDocumentHandler(documentService, hub)
 	roleHandler := rolehandler.NewRoleHandler(roleService)
 	dashboardHandler := dashboardhandler.NewDashboardHandler(dashboardService)
-
-	hub := collaboration.NewHub()
-	collaborationHandler := collaboration.NewCollaborationHandler(roleService, collaborationService, hub)
-
-	go hub.Run()
 
 	// ROUTER SETUP
 	r := routes.SetupRouter(userHandler, documentHandler, roleHandler, dashboardHandler, collaborationHandler)

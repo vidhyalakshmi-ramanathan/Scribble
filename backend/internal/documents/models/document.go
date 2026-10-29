@@ -163,15 +163,17 @@ func (u *documentModel) UpdateDocTx(tx *gorm.DB, document *doc.Documents) error 
 	result := tx.Model(&doc.Documents{}).
 		Where("document_id = ?", document.DocumentID).
 		Updates(map[string]interface{}{
-			"title":         document.Title,
-			"content":       document.Content,
-			"updated_by":    document.UpdatedBy,
-			"collabVersion": document.CollabVersion,
+			"title":          document.Title,
+			"content":        document.Content,
+			"schema_ver":     document.SchemaVer,
+			"updated_by":     document.UpdatedBy,
+			"version":        document.Version,
+			"collab_version": document.CollabVersion,
 		})
 	if result.Error != nil {
 		return fmt.Errorf("error updating document: %w", result.Error)
 	}
-	if result.RowsAffected == 0 {
+	if result.RowsAffected != 1 {
 		return response.ErrNotFound
 	}
 	return nil

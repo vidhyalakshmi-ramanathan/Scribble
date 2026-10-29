@@ -21,13 +21,13 @@ type DocumentService interface {
 	CreateDoc(userID string, document *entities.Documents) (string, error)
 	GetDocByID(userID, documentID string) (*entities.DocumentDetails, error)
 	GetMyAllDocs(userID string) ([]entities.DocumentResponse, error)
-	UpdateDoc(userID string, document *entities.Documents) error
+	UpdateDoc(userID string, document *entities.Documents) (*entities.Documents, error)
 	DeleteDoc(userID, documentID string) error
 	CheckEditPermission(userID, docID string) (*entities.Documents, error)
 	ApplyCollaborativeEdit(document *entities.Documents, baseVersion int) error
-	GetVersion(userID, documentID string, version int) (versionDetail *entities.Version, err error)
+	GetVersion(userID, documentID string, version int) (versionDetail *entities.VersionDetailRes, err error)
 	GetVersions(userID, documentID string) (versions []entities.VersionsList, err error)
-	RestoreVersion(userID, documentID string, version, expectedCollabVersion int) error
+	RestoreVersion(userID, documentID string, version, expectedCollabVersion int) (*entities.Documents, error)
 	SaveVersion(userID, documentID string) error
 }
 
@@ -135,14 +135,14 @@ func (s *documentService) GetMyAllDocs(userID string) ([]entities.DocumentRespon
 }
 
 // UpdateDoc When AutoSave
-func (s *documentService) UpdateDoc(userID string, document *entities.Documents) error {
+func (s *documentService) UpdateDoc(userID string, document *entities.Documents) (*entities.Documents, error) {
 	if strings.TrimSpace(document.Title) == "" {
-		return &response.ValidationError{
+		return nil, &response.ValidationError{
 			Message: "title cannot be empty",
 		}
 	}
 	if len(document.Content) == 0 || !json.Valid(document.Content) {
-		return &response.ValidationError{
+		return nil, &response.ValidationError{
 			Message: "content must be valid JSON",
 		}
 	}
@@ -150,7 +150,7 @@ func (s *documentService) UpdateDoc(userID string, document *entities.Documents)
 		Type string `json:"type"`
 	}
 	if err := json.Unmarshal(document.Content, &content); err != nil || content.Type != "doc" {
-		return &response.ValidationError{
+		return nil, &response.ValidationError{
 			Message: "content must be a valid ProseMirror document",
 		}
 	}
@@ -158,11 +158,11 @@ func (s *documentService) UpdateDoc(userID string, document *entities.Documents)
 
 	oldDocument, err := s.CheckEditPermission(userID, document.DocumentID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// Reject a request based on an outdated document revision
 	if oldDocument.CollabVersion != expectedCollabVersion {
-		return response.ErrVersionConflict
+		return nil, response.ErrVersionConflict
 	}
 
 	oldDocument.Title = document.Title
@@ -172,12 +172,13 @@ func (s *documentService) UpdateDoc(userID string, document *entities.Documents)
 
 	updated, err := s.model.UpdateDocWithVersion(oldDocument, expectedCollabVersion)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !updated {
-		return response.ErrVersionConflict
+		return nil, response.ErrVersionConflict
 	}
-	return nil
+	oldDocument.CollabVersion++
+	return oldDocument, nil
 }
 
 func (s *documentService) DeleteDoc(userID, documentID string) error {
@@ -255,16 +256,16 @@ func (s *documentService) ApplyCollaborativeEdit(document *entities.Documents, b
 	return nil
 }
 
-func (s *documentService) GetVersion(userID, documentID string, version int) (versionDetail *entities.Version, err error) {
+func (s *documentService) GetVersion(userID, documentID string, version int) (documentVersionDetail *entities.VersionDetailRes, err error) {
 	_, err = s.CheckAccess(userID, documentID)
 	if err != nil {
 		return nil, err
 	}
-	versionDetail, err = s.versionModel.GetVersion(documentID, version)
+	documentVersionDetail, err = s.versionModel.GetVersion(documentID, version)
 	if err != nil {
 		return nil, err
 	}
-	return versionDetail, nil
+	return documentVersionDetail, nil
 }
 
 func (s *documentService) GetVersions(userID, documentID string) (versionsList []entities.VersionsList, err error) {
@@ -279,17 +280,18 @@ func (s *documentService) GetVersions(userID, documentID string) (versionsList [
 	return versionsList, nil
 }
 
-func (s *documentService) RestoreVersion(userID, documentID string, version, expectedCollabVersion int) error {
+func (s *documentService) RestoreVersion(userID, documentID string, version, expectedCollabVersion int) (*entities.Documents, error) {
 	if _, err := s.CheckEditPermission(userID, documentID); err != nil {
-		return err
+		return nil, err
 	}
 	// Retrieve the snapshot the user wants to restore
 	versionToRestore, err := s.versionModel.GetVersion(documentID, version)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	var restoredDocument *entities.Documents
 
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	err = s.db.Transaction(func(tx *gorm.DB) error {
 		// Lock the document row while restoring
 		document, err := s.model.GetDocumentForUpdate(tx, documentID)
 		if err != nil {
@@ -308,35 +310,46 @@ func (s *documentService) RestoreVersion(userID, documentID string, version, exp
 
 		if latestVersion != nil {
 			nextVersion = latestVersion.Version + 1
-			sameAsLatest = latestVersion.Title == versionToRestore.Title && bytes.Equal(latestVersion.Content, versionToRestore.Content)
+			sameAsLatest = latestVersion.Title == versionToRestore.Title && bytes.Equal(latestVersion.Content, versionToRestore.Content) && latestVersion.SchemaVer == versionToRestore.SchemaVer
 		}
 
 		// Restore the selected snapshot to the live document
 		document.Title = versionToRestore.Title
 		document.Content = versionToRestore.Content
+		document.SchemaVer = versionToRestore.SchemaVer
 		document.UpdatedBy = userID
 		document.CollabVersion++
 
+		if !sameAsLatest {
+			document.Version = nextVersion
+		}
 		if err := s.model.UpdateDocTx(tx, document); err != nil {
 			return err
 		}
 
 		// If the content is already identical, no new history
 		// snapshot is necessary
-		if sameAsLatest {
-			return nil
+		if !sameAsLatest {
+			newVersion := entities.Version{
+				ID:         uuid.New().String(),
+				DocumentID: documentID,
+				Version:    nextVersion,
+				Title:      document.Title,
+				Content:    document.Content,
+				SchemaVer:  document.SchemaVer,
+				ModifiedBy: userID,
+			}
+			if err := s.versionModel.CreateVersion(tx, &newVersion); err != nil {
+				return err
+			}
 		}
-		newVersion := entities.Version{
-			ID:         uuid.New().String(),
-			DocumentID: documentID,
-			Version:    nextVersion,
-			Title:      versionToRestore.Title,
-			Content:    versionToRestore.Content,
-			ModifiedBy: userID,
-		}
-
-		return s.versionModel.CreateVersion(tx, &newVersion)
+		restoredDocument = document
+		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	return restoredDocument, nil
 }
 
 func (s *documentService) SaveVersion(userID, documentID string) error {
@@ -357,23 +370,30 @@ func (s *documentService) SaveVersion(userID, documentID string) error {
 		nextVersion := 1
 
 		if latestVersion != nil {
-			sameTitle := latestVersion.Title == document.Title
-			sameContent := bytes.Equal(latestVersion.Content, document.Content)
-
-			if sameTitle && sameContent {
+			sameAsLatest := latestVersion.Title == document.Title && latestVersion.SchemaVer == document.SchemaVer && bytes.Equal(latestVersion.Content, document.Content)
+			if sameAsLatest {
+				// Keep the cached snapshot number consistent.
+				if document.Version != latestVersion.Version {
+					return s.versionModel.UpdateSnapshotVersionTx(tx, document.DocumentID, latestVersion.Version)
+				}
 				return nil
 			}
 
 			nextVersion = latestVersion.Version + 1
 		}
-		docVersion := entities.Version{
+		newVersion := entities.Version{
 			ID:         uuid.New().String(),
 			DocumentID: document.DocumentID,
 			Version:    nextVersion,
 			Title:      document.Title,
 			Content:    document.Content,
+			SchemaVer:  document.SchemaVer,
 			ModifiedBy: userID,
 		}
-		return s.versionModel.CreateVersion(tx, &docVersion)
+		if err := s.versionModel.CreateVersion(tx, &newVersion); err != nil {
+			return err
+		}
+		// Update the cached snapshot counter in the same transaction.
+		return s.versionModel.UpdateSnapshotVersionTx(tx, document.DocumentID, nextVersion)
 	})
 }

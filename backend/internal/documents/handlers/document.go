@@ -2,11 +2,13 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/collaboration"
 	"github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/documents/entities"
 	"github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/documents/services"
 	"github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/dto"
@@ -17,10 +19,11 @@ import (
 
 type DocumentHandler struct {
 	service services.DocumentService
+	hub     *collaboration.Hub
 }
 
-func NewDocumentHandler(service services.DocumentService) *DocumentHandler {
-	return &DocumentHandler{service: service}
+func NewDocumentHandler(service services.DocumentService, hub *collaboration.Hub) *DocumentHandler {
+	return &DocumentHandler{service: service, hub: hub}
 }
 
 func (h *DocumentHandler) CreateDoc(w http.ResponseWriter, r *http.Request) {
@@ -124,9 +127,25 @@ func (h *DocumentHandler) UpdateDoc(w http.ResponseWriter, r *http.Request) {
 		UpdatedBy:     claims.UserID,
 		CollabVersion: *docData.CollabVersion,
 	}
-	if err := h.service.UpdateDoc(claims.UserID, &document); err != nil {
+	updatedDoc, err := h.service.UpdateDoc(claims.UserID, &document)
+	if err != nil {
 		response.Error(w, err)
 		return
+	}
+	broadcastMessage := entities.BroadcastMessage{
+		Type: "update",
+		Data: entities.BroadcastData{
+			DocumentID:    updatedDoc.DocumentID,
+			CollabVersion: updatedDoc.CollabVersion,
+			Content:       updatedDoc.Content,
+			Title:         updatedDoc.Title,
+		},
+	}
+	data, err := json.Marshal(broadcastMessage)
+	if err != nil {
+		log.Printf("Failed to marshal document update: %v", err)
+	} else {
+		h.hub.BroadcastDocument(updatedDoc.DocumentID, data)
 	}
 	response.JSON(w, http.StatusOK, dto.APIResponse{
 		Message: "Document Updated Successfully!",
@@ -174,14 +193,14 @@ func (h *DocumentHandler) GetVersion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid version", http.StatusBadRequest)
 		return
 	}
-	versionDetail, err := h.service.GetVersion(claims.UserID, docID, version)
+	documentVersionDetail, err := h.service.GetVersion(claims.UserID, docID, version)
 	if err != nil {
 		response.Error(w, err)
 		return
 	}
 	response.JSON(w, http.StatusOK, dto.APIResponse{
 		Message: "Retrieved document version!",
-		Data:    versionDetail,
+		Data:    documentVersionDetail,
 	})
 }
 
@@ -239,11 +258,28 @@ func (h *DocumentHandler) RestoreVersion(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Invalid version", http.StatusBadRequest)
 		return
 	}
-	err = h.service.RestoreVersion(claims.UserID, docID, version, *req.ExpectedCollabVersion)
+	restoredDoc, err := h.service.RestoreVersion(claims.UserID, docID, version, *req.ExpectedCollabVersion)
 	if err != nil {
 		response.Error(w, err)
 		return
 	}
+
+	broadcastMessage := entities.BroadcastMessage{
+		Type: "restore",
+		Data: entities.BroadcastData{
+			DocumentID:    restoredDoc.DocumentID,
+			CollabVersion: restoredDoc.CollabVersion,
+			Content:       restoredDoc.Content,
+			Title:         restoredDoc.Title,
+		},
+	}
+	data, err := json.Marshal(broadcastMessage)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	h.hub.BroadcastDocument(restoredDoc.DocumentID, data)
+
 	response.JSON(w, http.StatusOK, dto.APIResponse{
 		Message: "Document restored successfully!",
 	})
@@ -267,6 +303,6 @@ func (h *DocumentHandler) SaveVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.JSON(w, http.StatusOK, dto.APIResponse{
-		Message: "Document Version successfully!",
+		Message: "Version Saved successfully!",
 	})
 }
