@@ -36,13 +36,15 @@ func (h *DocumentHandler) CreateDoc(w http.ResponseWriter, r *http.Request) {
 	}
 
 	document := entities.Documents{
-		DocumentID: uuid.New().String(),
-		Title:      docData.Title,
-		Content:    datatypes.JSON(docData.Content),
-		Category:   docData.Category,
-		OwnerID:    claims.UserID,
-		UpdatedBy:  claims.UserID,
-		SchemaVer:  1,
+		DocumentID:    uuid.New().String(),
+		Title:         docData.Title,
+		Content:       datatypes.JSON(docData.Content),
+		Category:      docData.Category,
+		OwnerID:       claims.UserID,
+		UpdatedBy:     claims.UserID,
+		SchemaVer:     1,
+		Version:       0,
+		CollabVersion: 0,
 	}
 	docID, err := h.service.CreateDoc(claims.UserID, &document)
 	if err != nil {
@@ -110,17 +112,17 @@ func (h *DocumentHandler) UpdateDoc(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Request parameter docID is required", http.StatusBadRequest)
 		return
 	}
-	if docData.Version == nil || *docData.Version < 0 {
-		http.Error(w, "A valid document version is required", http.StatusBadRequest)
+	if docData.CollabVersion == nil || *docData.CollabVersion < 0 {
+		http.Error(w, "A valid collaboration version is required", http.StatusBadRequest)
 		return
 	}
 	document := entities.Documents{
-		DocumentID: docID,
-		Title:      docData.Title,
-		Content:    datatypes.JSON(docData.Content),
-		Category:   docData.Category,
-		UpdatedBy:  claims.UserID,
-		Version:    *docData.Version,
+		DocumentID:    docID,
+		Title:         docData.Title,
+		Content:       datatypes.JSON(docData.Content),
+		Category:      docData.Category,
+		UpdatedBy:     claims.UserID,
+		CollabVersion: *docData.CollabVersion,
 	}
 	if err := h.service.UpdateDoc(claims.UserID, &document); err != nil {
 		response.Error(w, err)
@@ -212,8 +214,8 @@ func (h *DocumentHandler) RestoreVersion(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
 		return
 	}
-	if req.ExpectedVersion == nil || *req.ExpectedVersion < 0 {
-		http.Error(w, "A valid expectedVersion is required", http.StatusBadRequest)
+	if req.ExpectedCollabVersion == nil || *req.ExpectedCollabVersion < 0 {
+		http.Error(w, "A valid expectedCollabVersion is required", http.StatusBadRequest)
 		return
 	}
 
@@ -222,8 +224,8 @@ func (h *DocumentHandler) RestoreVersion(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Request parameter docID is required", http.StatusBadRequest)
 		return
 	}
-	versionID := chi.URLParam(r, "version")
-	if versionID == "" {
+	versionParam := chi.URLParam(r, "version")
+	if versionParam == "" {
 		http.Error(w, "Request parameter version is required", http.StatusBadRequest)
 		return
 	}
@@ -232,12 +234,12 @@ func (h *DocumentHandler) RestoreVersion(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	version, err := strconv.Atoi(versionID)
+	version, err := strconv.Atoi(versionParam)
 	if err != nil || version < 1 {
 		http.Error(w, "Invalid version", http.StatusBadRequest)
 		return
 	}
-	err = h.service.RestoreVersion(claims.UserID, docID, version, *req.ExpectedVersion)
+	err = h.service.RestoreVersion(claims.UserID, docID, version, *req.ExpectedCollabVersion)
 	if err != nil {
 		response.Error(w, err)
 		return

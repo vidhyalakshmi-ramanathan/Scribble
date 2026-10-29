@@ -8,15 +8,47 @@ import (
 	"gorm.io/datatypes"
 )
 
-type DocumentReq struct {
-	Title    string          `json:"title"`
-	Content  json.RawMessage `json:"content"`
-	Category string          `json:"category"`
-	Version  *int            `json:"version"`
+type DocumentResponse struct {
+	DocumentID    string    `json:"documentID"`
+	Title         string    `json:"title"`
+	CollabVersion int       `json:"collabVersion"`
+	OwnerID       string    `json:"ownerID"`
+	Version       int       `json:"version"`
+	Category      string    `json:"category"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+	UpdatedBy     string    `json:"updatedBy"`
 }
 
+type DocumentDetails struct {
+	DocumentID    string         `json:"documentID"`
+	Title         string         `json:"title"`
+	Content       datatypes.JSON `json:"content"`
+	CollabVersion int            `json:"collabVersion"`
+	OwnerID       string         `json:"ownerID"`
+	Version       int            `json:"version"`
+	Category      string         `json:"category"`
+	CreatedAt     time.Time      `json:"createdAt"`
+	UpdatedAt     time.Time      `json:"updatedAt"`
+	DeletedAt     *time.Time     `json:"deletedAt"`
+	UpdatedBy     string         `json:"updatedBy"`
+}
+
+type DocumentReq struct {
+	Title         string          `json:"title"`
+	Content       json.RawMessage `json:"content"`
+	Category      string          `json:"category"`
+	CollabVersion *int            `json:"collabVersion"`
+}
+
+type DocumentSuccessRes struct {
+	DocumentID string    `json:"documentID"`
+	Title      string    `json:"title"`
+	Version    int       `json:"version"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+	UpdatedBy  string    `json:"updatedBy"`
+}
 type RestoreVersionReq struct {
-	ExpectedVersion *int `json:"expectedVersion"`
+	ExpectedCollabVersion *int `json:"expectedCollabVersion"`
 }
 
 type AddUserRoleReq struct {
@@ -27,7 +59,7 @@ type AddUserRoleReq struct {
 type VersionsList struct {
 	ID         string `json:"id"`
 	DocumentID string `json:"docID"`
-	VersionID  int    `json:"versionID"`
+	Version    int    `json:"version"`
 	Title      string `json:"title"`
 	// Content            string    `json:"content"`
 	ModifiedByUserID   string    `json:"modifiedByUserID"`
@@ -52,8 +84,8 @@ type WSMessage struct {
 }
 
 type EditData struct {
-	BaseVersion int             `json:"base_version"`
-	Content     json.RawMessage `json:"content"`
+	BaseCollabVersion int             `json:"baseCollabVersion"`
+	Content           json.RawMessage `json:"content"`
 }
 
 type WSError struct {
@@ -67,8 +99,8 @@ type BroadcastMessage struct {
 }
 
 type BroadcastData struct {
-	DocumentID string         `json:"document_id"`
-	Version    int            `json:"version"`
-	Content    datatypes.JSON `json:"content"`
-	Title      string         `json:"title"`
+	DocumentID    string         `json:"document_id"`
+	CollabVersion int            `json:"collabVersion"`
+	Content       datatypes.JSON `json:"content"`
+	Title         string         `json:"title"`
 }

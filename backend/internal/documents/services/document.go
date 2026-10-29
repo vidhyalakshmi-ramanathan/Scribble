@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	auth "github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/auth/models"
@@ -12,20 +13,21 @@ import (
 	"github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/documents/models"
 	"github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/enums"
 	"github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/response"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
 type DocumentService interface {
 	CreateDoc(userID string, document *entities.Documents) (string, error)
-	GetDocByID(userID, documentID string) (docDetails *entities.Documents, err error)
-	GetMyAllDocs(userID string) (documents []entities.Documents, err error)
+	GetDocByID(userID, documentID string) (*entities.DocumentDetails, error)
+	GetMyAllDocs(userID string) ([]entities.DocumentResponse, error)
 	UpdateDoc(userID string, document *entities.Documents) error
 	DeleteDoc(userID, documentID string) error
 	CheckEditPermission(userID, docID string) (*entities.Documents, error)
-	UpdateContentByVersion(document *entities.Documents, baseVersion int) error
+	ApplyCollaborativeEdit(document *entities.Documents, baseVersion int) error
 	GetVersion(userID, documentID string, version int) (versionDetail *entities.Version, err error)
 	GetVersions(userID, documentID string) (versions []entities.VersionsList, err error)
-	RestoreVersion(userID, documentID string, version, expectedVersion int) error
+	RestoreVersion(userID, documentID string, version, expectedCollabVersion int) error
 	SaveVersion(userID, documentID string) error
 }
 
@@ -49,11 +51,14 @@ func NewDocumentService(userModel auth.UserModel, model models.DocumentModel, ro
 
 func (s *documentService) CreateDoc(userID string, document *entities.Documents) (string, error) {
 	if strings.TrimSpace(document.Title) == "" {
-		return "", &response.ValidationError{
-			Message: "title cannot be empty",
-		}
+		document.Title = "Untitled Document"
 	}
-	if len(document.Content) == 0 || !json.Valid(document.Content) {
+	if len(document.Content) == 0 {
+		document.Content = datatypes.JSON(
+			[]byte(`{"type":"doc","content":[{"type":"paragraph"}]}`),
+		)
+	}
+	if !json.Valid(document.Content) {
 		return "", &response.ValidationError{
 			Message: "content must be valid JSON",
 		}
@@ -69,27 +74,64 @@ func (s *documentService) CreateDoc(userID string, document *entities.Documents)
 	if document.Category == "" {
 		document.Category = "General"
 	}
+
+	document.OwnerID = userID
+	document.UpdatedBy = userID
 	document.SchemaVer = 1
+	document.Version = 0
+	document.CollabVersion = 0
+
 	if err := s.model.CreateDoc(document); err != nil {
 		return "", err
 	}
 	return document.DocumentID, nil
 }
 
-func (s *documentService) GetDocByID(userID, documentID string) (docDetails *entities.Documents, err error) {
-	docDetails, err = s.CheckAccess(userID, documentID)
+func (s *documentService) GetDocByID(userID, documentID string) (*entities.DocumentDetails, error) {
+	doc, err := s.CheckAccess(userID, documentID)
 	if err != nil {
 		return nil, err
 	}
-	return docDetails, nil
+	var deletedAt *time.Time
+
+	if doc.DeletedAt.Valid {
+		deletedAt = &doc.DeletedAt.Time
+	}
+	return &entities.DocumentDetails{
+		DocumentID:    doc.DocumentID,
+		Title:         doc.Title,
+		Content:       doc.Content,
+		CollabVersion: doc.CollabVersion,
+		OwnerID:       doc.OwnerID,
+		Version:       doc.Version,
+		Category:      doc.Category,
+		CreatedAt:     doc.CreatedAt,
+		UpdatedAt:     doc.UpdatedAt,
+		DeletedAt:     deletedAt,
+		UpdatedBy:     doc.UpdatedBy,
+	}, nil
 }
 
-func (s *documentService) GetMyAllDocs(userID string) (documents []entities.Documents, err error) {
-	documents, err = s.model.GetMyAllDocs(userID)
+func (s *documentService) GetMyAllDocs(userID string) ([]entities.DocumentResponse, error) {
+	documents, err := s.model.GetMyAllDocs(userID)
 	if err != nil {
 		return nil, err
 	}
-	return documents, nil
+	result := make([]entities.DocumentResponse, 0, len(documents))
+
+	for _, doc := range documents {
+		result = append(result, entities.DocumentResponse{
+			DocumentID:    doc.DocumentID,
+			Title:         doc.Title,
+			CollabVersion: doc.CollabVersion,
+			OwnerID:       doc.OwnerID,
+			Version:       doc.Version,
+			Category:      doc.Category,
+			UpdatedAt:     doc.UpdatedAt,
+			UpdatedBy:     doc.UpdatedBy,
+		})
+	}
+	return result, nil
 }
 
 // UpdateDoc When AutoSave
@@ -112,14 +154,14 @@ func (s *documentService) UpdateDoc(userID string, document *entities.Documents)
 			Message: "content must be a valid ProseMirror document",
 		}
 	}
-	expectedVersion := document.Version
+	expectedCollabVersion := document.CollabVersion
 
 	oldDocument, err := s.CheckEditPermission(userID, document.DocumentID)
 	if err != nil {
 		return err
 	}
 	// Reject a request based on an outdated document revision
-	if oldDocument.Version != expectedVersion {
+	if oldDocument.CollabVersion != expectedCollabVersion {
 		return response.ErrVersionConflict
 	}
 
@@ -128,7 +170,7 @@ func (s *documentService) UpdateDoc(userID string, document *entities.Documents)
 	oldDocument.Category = document.Category
 	oldDocument.UpdatedBy = userID
 
-	updated, err := s.model.UpdateDocWithVersion(oldDocument, expectedVersion)
+	updated, err := s.model.UpdateDocWithVersion(oldDocument, expectedCollabVersion)
 	if err != nil {
 		return err
 	}
@@ -201,9 +243,9 @@ func (s *documentService) CheckEditPermission(userID, docID string) (*entities.D
 	return nil, response.ErrForbidden
 }
 
-func (s *documentService) UpdateContentByVersion(document *entities.Documents, baseVersion int) error {
+func (s *documentService) ApplyCollaborativeEdit(document *entities.Documents, baseCollabVersion int) error {
 
-	updated, err := s.versionModel.UpdateContentByVersion(document.DocumentID, document, baseVersion)
+	updated, err := s.versionModel.ApplyCollaborativeEdit(document.DocumentID, document, baseCollabVersion)
 	if err != nil {
 		return err
 	}
@@ -237,7 +279,7 @@ func (s *documentService) GetVersions(userID, documentID string) (versionsList [
 	return versionsList, nil
 }
 
-func (s *documentService) RestoreVersion(userID, documentID string, version, expectedVersion int) error {
+func (s *documentService) RestoreVersion(userID, documentID string, version, expectedCollabVersion int) error {
 	if _, err := s.CheckEditPermission(userID, documentID); err != nil {
 		return err
 	}
@@ -253,7 +295,7 @@ func (s *documentService) RestoreVersion(userID, documentID string, version, exp
 		if err != nil {
 			return err
 		}
-		if document.Version != expectedVersion {
+		if document.CollabVersion != expectedCollabVersion {
 			return response.ErrVersionConflict
 		}
 		// Find the latest saved history snapshot
@@ -265,7 +307,7 @@ func (s *documentService) RestoreVersion(userID, documentID string, version, exp
 		sameAsLatest := false
 
 		if latestVersion != nil {
-			nextVersion = latestVersion.VersionID + 1
+			nextVersion = latestVersion.Version + 1
 			sameAsLatest = latestVersion.Title == versionToRestore.Title && bytes.Equal(latestVersion.Content, versionToRestore.Content)
 		}
 
@@ -273,7 +315,7 @@ func (s *documentService) RestoreVersion(userID, documentID string, version, exp
 		document.Title = versionToRestore.Title
 		document.Content = versionToRestore.Content
 		document.UpdatedBy = userID
-		document.Version++
+		document.CollabVersion++
 
 		if err := s.model.UpdateDocTx(tx, document); err != nil {
 			return err
@@ -287,7 +329,7 @@ func (s *documentService) RestoreVersion(userID, documentID string, version, exp
 		newVersion := entities.Version{
 			ID:         uuid.New().String(),
 			DocumentID: documentID,
-			VersionID:  nextVersion,
+			Version:    nextVersion,
 			Title:      versionToRestore.Title,
 			Content:    versionToRestore.Content,
 			ModifiedBy: userID,
@@ -322,12 +364,12 @@ func (s *documentService) SaveVersion(userID, documentID string) error {
 				return nil
 			}
 
-			nextVersion = latestVersion.VersionID + 1
+			nextVersion = latestVersion.Version + 1
 		}
 		docVersion := entities.Version{
 			ID:         uuid.New().String(),
 			DocumentID: document.DocumentID,
-			VersionID:  nextVersion,
+			Version:    nextVersion,
 			Title:      document.Title,
 			Content:    document.Content,
 			ModifiedBy: userID,
