@@ -48,7 +48,7 @@ func (s *dashboardService) GetDashboard(userID string) (*dto.DashboardResponse, 
 		return nil, err
 	}
 
-	pendingInvites, err := s.roleModel.FindPendingByEmail(user.Email)
+	pendingInvites, err := s.roleModel.GetPendingInvites(user.Email)
 	if err != nil {
 		return nil, err
 	}

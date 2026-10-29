@@ -3,9 +3,11 @@ package models
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	auth "github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/auth/entities"
 	"github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/documents/entities"
+	"github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/dto"
 	"github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/enums"
 	"github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/response"
 	"gorm.io/gorm"
@@ -22,6 +24,7 @@ type RoleModel interface {
 	FindInvitesByDocumentID(documentID string) ([]auth.DocumentInvites, error)
 	FindPendingByEmail(email string) ([]auth.DocumentInvites, error)
 	UpdateInviteStatus(tx *gorm.DB, id string, status enums.Invites) error
+	GetPendingInvites(email string) ([]dto.PendingInvites, error)
 }
 
 type roleModel struct {
@@ -111,6 +114,7 @@ func (u *roleModel) FindInvitesByDocumentID(documentID string) ([]auth.DocumentI
 	}
 	return invites, nil
 }
+
 func (u *roleModel) FindPendingByEmail(email string) ([]auth.DocumentInvites, error) {
 	var invites []auth.DocumentInvites
 	err := u.db.Where("email= ? AND status= ?", email, enums.InvitePending).Find(&invites).Error
@@ -126,4 +130,34 @@ func (u *roleModel) UpdateInviteStatus(tx *gorm.DB, id string, status enums.Invi
 		return fmt.Errorf("Error updating invite status %w", err)
 	}
 	return nil
+}
+
+func (u *roleModel) GetPendingInvites(email string) ([]dto.PendingInvites, error) {
+	invites := make([]dto.PendingInvites, 0)
+
+	err := u.db.Model(&auth.DocumentInvites{}).
+		Select(`
+            i.id AS invitationID,
+            i.document_id,
+            d.title AS title,
+            inviter.user_name AS invitedBy,
+            inviter.user_id AS invitedByID,
+            i.role,
+            i.expires_at AS ,
+            i.created_at AS 
+        `).
+		Table("document_invites i").
+		Joins("JOIN documents d ON d.document_id = i.document_id").
+		Joins("LEFT JOIN users inviter ON inviter.user_id = i.invited_by").
+		Where("LOWER(i.invited_email) = LOWER(?)", email).
+		Where("i.status = ?", enums.Invites("pending")).
+		Where("i.expires_at > ?", time.Now()).
+		Order("i.created_at DESC").
+		Scan(&invites).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("fetching pending invitations: %w", err)
+	}
+
+	return invites, nil
 }

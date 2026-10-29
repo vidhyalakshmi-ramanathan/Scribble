@@ -29,7 +29,7 @@ func (h *DashboardHandler) GetDashboard(w http.ResponseWriter, r *http.Request) 
 		response.Error(w, err)
 		return
 	}
-	response.JSON(w, http.StatusCreated, dto.APIResponse{
+	response.JSON(w, http.StatusOK, dto.APIResponse{
 		Message: "Dashboard Data Retrieved!",
 		Data:    dashboard,
 	})

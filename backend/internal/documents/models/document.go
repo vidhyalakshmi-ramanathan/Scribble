@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/documents/entities"
 	doc "github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/documents/entities"
+	"github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/dto"
 	"github.com/vidhyalakshmi-ramanathan/SCRIBHYA-Editor/internal/response"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -16,9 +18,9 @@ type DocumentModel interface {
 	GetMyAllDocs(userID string) (documents []doc.Documents, err error)
 	UpdateDocWithVersion(document *doc.Documents, expectedCollabVersion int) (bool, error)
 	DeleteDoc(documentID string) error
-	GetRecentlyEdited(userID string, limit int) ([]doc.Documents, error)
-	GetSharedDocuments(userID string) ([]doc.Documents, error)
-	GetMyDocs(userID string) (documents []doc.Documents, err error)
+	GetRecentlyEdited(userID string, limit int) ([]dto.RecentDocuments, error)
+	GetSharedDocuments(userID string) ([]dto.SharedDocuments, error)
+	GetMyDocs(userID string) ([]dto.MyDocuments, error)
 	GetDocumentForUpdate(tx *gorm.DB, documentID string) (*doc.Documents, error)
 	UpdateDocTx(tx *gorm.DB, document *doc.Documents) error
 }
@@ -64,17 +66,6 @@ func (u *documentModel) GetMyAllDocs(userID string) ([]doc.Documents, error) {
 	return documents, nil
 }
 
-func (u *documentModel) UpdateDoc(document *doc.Documents) error {
-	return u.db.Model(&doc.Documents{}).Where("document_id= ?", document.DocumentID).
-		Updates(map[string]interface{}{
-			"title":          document.Title,
-			"content":        document.Content,
-			"category":       document.Category,
-			"updated_by":     document.UpdatedBy,
-			"collab_version": document.CollabVersion,
-		}).Error
-}
-
 func (u *documentModel) UpdateDocWithVersion(document *doc.Documents, expectedCollabVersion int) (bool, error) {
 	result := u.db.Model(&doc.Documents{}).
 		Where("document_id= ? AND collab_version= ?", document.DocumentID, expectedCollabVersion).
@@ -104,41 +95,78 @@ func (u *documentModel) DeleteDoc(documentID string) error {
 	return nil
 }
 
-func (u *documentModel) GetMyDocs(userID string) (documents []doc.Documents, err error) {
-	err = u.db.Where("owner_id= ?)", userID).Order("updated_at DESC").Find(&documents).Error
+func (u *documentModel) GetMyDocs(userID string) ([]dto.MyDocuments, error) {
+	documents := make([]dto.MyDocuments, 0)
+	err := u.db.Model(&doc.Documents{}).
+		Select(`
+			documents.document_id,
+            documents.title,
+            documents.category,
+            documents.updated_at
+		`).
+		Where("documents.owner_id= ?", userID).
+		Order("documents.updated_at DESC").
+		Scan(&documents).Error
 	if err != nil {
-		return nil, fmt.Errorf("Error fetching documents details by OwnerID %w", err)
+		return nil, fmt.Errorf("fetching owned docs: %w", err)
 	}
 	return documents, nil
 
 }
 
-func (u *documentModel) GetRecentlyEdited(userID string, limit int) ([]doc.Documents, error) {
-	var documents []doc.Documents
+func (u *documentModel) GetRecentlyEdited(userID string, limit int) ([]dto.RecentDocuments, error) {
+	documents := make([]dto.RecentDocuments, 0)
 
-	err := u.db.Joins("LEFT JOIN permissions p ON p.document_id = documents.document_id AND p.user_id = ?", userID).
+	err := u.db.Model(&entities.Documents{}).
+		Select(`
+            documents.document_id,
+            documents.title,
+            documents.category,
+            documents.updated_at,
+            documents.owner_id
+        `).
+		Joins(`
+            LEFT JOIN permissions p
+                ON p.document_id = documents.document_id
+                AND p.user_id = ?
+		`, userID).
 		Where("documents.owner_id = ? OR p.user_id IS NOT NULL", userID).
 		Order("documents.updated_at DESC").
 		Limit(limit).
-		Find(&documents).Error
+		Scan(&documents).Error
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetching recent documents: %w", err)
 	}
 
 	return documents, nil
 }
 
-func (u *documentModel) GetSharedDocuments(userID string) ([]doc.Documents, error) {
-	var documents []doc.Documents
+func (u *documentModel) GetSharedDocuments(userID string) ([]dto.SharedDocuments, error) {
+	documents := make([]dto.SharedDocuments, 0)
 
-	err := u.db.Joins("JOIN permissions p ON p.document_id = documents.document_id").
-		Where("p.user_id = ? AND documents.owner_id != ?", userID, userID).
+	err := u.db.Model(&entities.Documents{}).
+		Select(`
+            documents.document_id,
+            documents.title,
+            documents.category,
+            documents.updated_at,
+            owner.user_name AS shared_by,
+            owner.user_id AS shared_by_id,
+            m.role AS role
+        `).
+		Joins(`
+            JOIN permissions p
+                ON p.document_id = documents.document_id"
+                AND p.user_id = ?
+        `, userID).
+		Joins("JOIN users owner ON owner.user_id = documents.owner_id").
+		Where("documents.owner_id <> ?", userID).
 		Order("documents.updated_at DESC").
-		Find(&documents).Error
+		Scan(&documents).Error
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetching shared documents: %w", err)
 	}
 
 	return documents, nil
