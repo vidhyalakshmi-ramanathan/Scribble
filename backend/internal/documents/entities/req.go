@@ -33,11 +33,17 @@ type DocumentDetails struct {
 	UpdatedBy     string         `json:"updatedBy"`
 }
 
-type DocumentReq struct {
+type UpdateDocuReq struct {
 	Title         string          `json:"title"`
 	Content       json.RawMessage `json:"content"`
 	Category      string          `json:"category"`
 	CollabVersion *int            `json:"collabVersion"`
+}
+
+type CreateDocuReq struct {
+	Title    string          `json:"title"`
+	Content  json.RawMessage `json:"content"`
+	Category string          `json:"category"`
 }
 
 type DocumentSuccessRes struct {
@@ -57,27 +63,27 @@ type AddUserRoleReq struct {
 }
 
 type VersionsList struct {
-	ID                 string    `json:"id"`
-	DocumentID         string    `json:"docID"`
-	Version            int       `json:"version"`
-	Title              string    `json:"title"`
-	ModifiedByUserID   string    `json:"modifiedByUserID"`
-	ModifiedByUserName *string   `json:"modifiedByUserName"`
-	SchemaVer          int       `json:"schemaVer"`
-	CreatedAt          time.Time `json:"createdAt"`
+	ID                 string    `json:"id" gorm:"column:id"`
+	DocumentID         string    `json:"docID" gorm:"column:document_id"`
+	Version            int       `json:"version" gorm:"column:version"`
+	Title              string    `json:"title" gorm:"column:title"`
+	ModifiedByUserID   string    `json:"modifiedByUserID" gorm:"column:modified_by_user_id"`
+	ModifiedByUserName *string   `json:"modifiedByUserName" gorm:"column:modified_by_user_name"`
+	SchemaVer          int       `json:"schemaVer" gorm:"column:schema_ver"`
+	CreatedAt          time.Time `json:"createdAt" gorm:"column:created_at"`
 	// Content            string    `json:"content"`
 }
 
 type VersionDetailRes struct {
-	ID               string         `json:"id"`
-	DocumentID       string         `json:"docID"`
-	Version          int            `json:"version"`
-	Title            string         `json:"title"`
-	Content          datatypes.JSON `json:"content"`
-	SchemaVer        int            `json:"schemaVer"`
-	ModifiedByUserID string         `json:"modifiedByUserID"`
-	ModifiedByName   string         `json:"modifiedByUserName"`
-	CreatedAt        time.Time      `json:"createdAt"`
+	ID               string         `json:"id" gorm:"column:id"`
+	DocumentID       string         `json:"docID" gorm:"column:document_id"`
+	Version          int            `json:"version" gorm:"column:version"`
+	Title            string         `json:"title" gorm:"column:title"`
+	Content          datatypes.JSON `json:"content" gorm:"column:content"`
+	SchemaVer        int            `json:"schemaVer" gorm:"column:schema_ver"`
+	ModifiedByUserID string         `json:"modifiedByUserID" gorm:"column:modified_by_user_id"`
+	ModifiedByName   string         `json:"modifiedByUserName" gorm:"column:modified_by_user_name"`
+	CreatedAt        time.Time      `json:"createdAt" gorm:"column:created_at"`
 }
 
 type MemberDetailRes struct {

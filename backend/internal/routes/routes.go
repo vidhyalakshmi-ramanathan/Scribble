@@ -55,7 +55,7 @@ func DocumentRoutes(r chi.Router, documentHandler *doc.DocumentHandler, roleHand
 		})
 	})
 
-	r.Route("/invites", func(r chi.Router) {
+	r.Route("/user/invites", func(r chi.Router) {
 		r.With(middleware.AuthMiddleware).Get("/", roleHandler.GetInvites)
 	})
 }

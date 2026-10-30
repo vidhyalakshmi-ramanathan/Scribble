@@ -21,7 +21,7 @@ var (
 		Message: "User already exists",
 	}
 	ErrInvalidRequest = &AppError{
-		Code:    http.StatusConflict,
+		Code:    http.StatusBadRequest,
 		Message: "Invalid request",
 	}
 	ErrInvalidPassword = &AppError{
@@ -37,11 +37,11 @@ var (
 		Message: "Missing or Invalid token",
 	}
 	ErrDocumentNotExists = &AppError{
-		Code:    http.StatusConflict,
+		Code:    http.StatusNotFound,
 		Message: "Document doesn't exists",
 	}
 	ErrOwnerNotExists = &AppError{
-		Code:    http.StatusConflict,
+		Code:    http.StatusNotFound,
 		Message: "Owner doesn't exists",
 	}
 	ErrForbidden = &AppError{
@@ -65,7 +65,7 @@ var (
 		Message: "Document has changed. Please refresh or try again",
 	}
 	ErrInviteNotExists = &AppError{
-		Code:    http.StatusConflict,
+		Code:    http.StatusNotFound,
 		Message: "Invite doesn't exists",
 	}
 	ErrInviteNotPendingOrExpired = &AppError{

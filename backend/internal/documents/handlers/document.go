@@ -27,7 +27,7 @@ func NewDocumentHandler(service services.DocumentService, hub *collaboration.Hub
 }
 
 func (h *DocumentHandler) CreateDoc(w http.ResponseWriter, r *http.Request) {
-	var docData entities.DocumentReq
+	var docData entities.CreateDocuReq
 	claims, ok := middleware.GetClaims(r.Context())
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -100,7 +100,7 @@ func (h *DocumentHandler) GetMyAllDocs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DocumentHandler) UpdateDoc(w http.ResponseWriter, r *http.Request) {
-	var docData entities.DocumentReq
+	var docData entities.UpdateDocuReq
 	claims, ok := middleware.GetClaims(r.Context())
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)

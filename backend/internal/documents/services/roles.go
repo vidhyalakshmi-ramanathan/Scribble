@@ -63,7 +63,7 @@ func (s *roleService) GetMemberDetails(userID, targetID, documentID string) (*en
 	var memberDetails *entities.Permissions
 	memberDetails, err = s.rolemodel.GetMemberDetails(targetID, documentID)
 	if errors.Is(err, response.ErrNotFound) {
-		return nil, response.ErrForbidden
+		return nil, response.ErrNotFound
 	}
 	if err != nil {
 		return nil, err
@@ -242,6 +242,7 @@ func (s *roleService) CreateInvite(userID, documentID string, invitedEmail strin
 		DocumentID:   documentID,
 		InvitedEmail: invitedEmail,
 		Role:         role,
+		InvitedBy:    userID,
 		Status:       enums.InvitePending,
 		ExpiresAt:    time.Now().Add(7 * 24 * time.Hour),
 	}

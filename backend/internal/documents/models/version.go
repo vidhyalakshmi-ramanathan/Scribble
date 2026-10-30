@@ -40,13 +40,13 @@ func (u *versionModel) GetVersions(documentID string) ([]doc.VersionsList, error
 	err := u.db.Raw(`
         SELECT
             v.id AS id,
-            v.document_id AS docID,
+            v.document_id AS document_id,
             v.version AS version,
             v.title AS title,
-			v.schema_ver AS schemaVer,
-            v.modified_by AS modifiedByUserID,
-            COALESCE(u.user_name, 'Unknown user') AS modifiedByUserName,
-            v.created_at AS createdAt
+            v.modified_by AS modified_by_user_id,
+            COALESCE(u.user_name, 'Unknown user') AS modified_by_user_name,
+			v.schema_ver AS schema_ver,
+            v.created_at AS created_at
         FROM versions v
         LEFT JOIN users u ON u.user_id = v.modified_by
         WHERE v.document_id = ?
@@ -63,15 +63,15 @@ func (u *versionModel) GetVersion(documentID string, version int) (*doc.VersionD
 	var docVersion doc.VersionDetailRes
 	err := u.db.Raw(`
         SELECT
-            v.id,
-            v.document_id AS docID,
-            v.version,
-            v.title,
-            v.content,
-            v.schema_ver AS schemaVer,
-            v.modified_by AS modifiedByUserID,
-            COALESCE(u.user_name, 'Unknown user') AS modifiedByUserName,
-            v.created_at AS createdAt
+            v.id AS id,
+            v.document_id AS document_id,
+            v.version AS version,
+            v.title AS title,
+            v.content AS content,
+            v.schema_ver AS schema_ver,
+            v.modified_by AS modified_by_user_id,
+            COALESCE(u.user_name, 'Unknown user') AS modified_by_user_name,
+            v.created_at AS created_at
         FROM versions v
         LEFT JOIN users u ON u.user_id = v.modified_by
         WHERE v.document_id = ? AND v.version = ?
