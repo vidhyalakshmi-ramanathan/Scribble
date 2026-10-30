@@ -49,17 +49,14 @@ func DocumentRoutes(r chi.Router, documentHandler *doc.DocumentHandler, roleHand
 			r.Route("/invites", func(r chi.Router) {
 				r.Post("/", roleHandler.CreateInvite)
 				r.Get("/", roleHandler.GetSentInvites)
-				r.Get("/{inviteID}", roleHandler.AcceptInvite)
+				r.Post("/{inviteID}/accept", roleHandler.AcceptInvite)
 
 			})
 		})
 	})
 
 	r.Route("/invites", func(r chi.Router) {
-		r.Use(middleware.AuthMiddleware)
-
-		r.Get("/", roleHandler.GetInvites)
-		r.Post("/{inviteID}/accept", roleHandler.AcceptInvite)
+		r.With(middleware.AuthMiddleware).Get("/", roleHandler.GetInvites)
 	})
 }
 

@@ -99,10 +99,10 @@ func (u *documentModel) GetMyDocs(userID string) ([]dto.MyDocuments, error) {
 	documents := make([]dto.MyDocuments, 0)
 	err := u.db.Model(&doc.Documents{}).
 		Select(`
-			documents.document_id,
-            documents.title,
-            documents.category,
-            documents.updated_at
+			documents.document_id AS documentID,
+            documents.title AS title,
+            documents.category AS category,
+            documents.updated_at AS updatedAt
 		`).
 		Where("documents.owner_id= ?", userID).
 		Order("documents.updated_at DESC").
@@ -119,11 +119,11 @@ func (u *documentModel) GetRecentlyEdited(userID string, limit int) ([]dto.Recen
 
 	err := u.db.Model(&entities.Documents{}).
 		Select(`
-            documents.document_id,
-            documents.title,
-            documents.category,
-            documents.updated_at,
-            documents.owner_id
+            documents.document_id AS documentID,
+            documents.title AS title,
+            documents.category AS category,
+            documents.updated_at AS updatedAt,
+            documents.owner_id AS ownerID
         `).
 		Joins(`
             LEFT JOIN permissions p
@@ -147,13 +147,13 @@ func (u *documentModel) GetSharedDocuments(userID string) ([]dto.SharedDocuments
 
 	err := u.db.Model(&entities.Documents{}).
 		Select(`
-            documents.document_id,
-            documents.title,
-            documents.category,
-            documents.updated_at,
-            owner.user_name AS shared_by,
-            owner.user_id AS shared_by_id,
-            m.role AS role
+            documents.document_id AS documentID,
+            documents.title AS title,
+            documents.category AS category,
+            documents.updated_at AS updatedAt,
+            owner.user_name AS sharedBy,
+            owner.user_id AS sharedByID,
+            p.role AS role
         `).
 		Joins(`
             JOIN permissions p

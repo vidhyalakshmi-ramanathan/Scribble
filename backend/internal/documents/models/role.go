@@ -22,7 +22,7 @@ type RoleModel interface {
 	AddInvite(invite *auth.DocumentInvites) error
 	FindInviteByID(id string) (*auth.DocumentInvites, error)
 	FindInvitesByDocumentID(documentID string) ([]auth.DocumentInvites, error)
-	FindPendingByEmail(email string) ([]auth.DocumentInvites, error)
+	FindPendingByEmail(invitedEmail string) ([]auth.DocumentInvites, error)
 	UpdateInviteStatus(tx *gorm.DB, id string, status enums.Invites) error
 	GetPendingInvites(email string) ([]dto.PendingInvites, error)
 }
@@ -115,9 +115,9 @@ func (u *roleModel) FindInvitesByDocumentID(documentID string) ([]auth.DocumentI
 	return invites, nil
 }
 
-func (u *roleModel) FindPendingByEmail(email string) ([]auth.DocumentInvites, error) {
+func (u *roleModel) FindPendingByEmail(invitedEmail string) ([]auth.DocumentInvites, error) {
 	var invites []auth.DocumentInvites
-	err := u.db.Where("email= ? AND status= ?", email, enums.InvitePending).Find(&invites).Error
+	err := u.db.Where("invited_email= ? AND status= ?", invitedEmail, enums.InvitePending).Find(&invites).Error
 	if err != nil {
 		return nil, fmt.Errorf("Error fetching pending invites %w", err)
 	}
@@ -138,13 +138,15 @@ func (u *roleModel) GetPendingInvites(email string) ([]dto.PendingInvites, error
 	err := u.db.Model(&auth.DocumentInvites{}).
 		Select(`
             i.id AS invitationID,
-            i.document_id,
+            i.document_id AS documentID,
             d.title AS title,
-            inviter.user_name AS invitedBy,
-            inviter.user_id AS invitedByID,
-            i.role,
-            i.expires_at AS ,
-            i.created_at AS 
+			i.invited_email AS invitedEmail,
+            inviter.user_name AS invitedName,
+            inviter.user_id AS invitedBy,
+            i.role AS role,
+            i.expires_at AS expiresAt,
+            i.created_at AS createdAt,
+			i.status AS status
         `).
 		Table("document_invites i").
 		Joins("JOIN documents d ON d.document_id = i.document_id").
